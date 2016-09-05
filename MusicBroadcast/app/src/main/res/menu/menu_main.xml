@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:id="@+id/first_song_name"
+          android:title="@string/first_song_name"/>
+    <item android:id="@+id/second_song_name"
+        android:title="@string/second_song_name"/>
+    <item android:id="@+id/third_song_name"
+        android:title="@string/third_song_name"/>
+</menu>
