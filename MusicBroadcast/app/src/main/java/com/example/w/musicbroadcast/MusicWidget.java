@@ -16,6 +16,10 @@ public class MusicWidget extends AppWidgetProvider{
 
     public static final String WIDGET_ACTION = "widget_action";
 
+    public static final String CURRENT = "current";
+    public static final String STATUS = "status";
+    public static final String UPDATE_ACTION = "update_action";
+
     @Override
     public void onReceive(Context context, Intent intent) {
         super.onReceive(context, intent);
@@ -43,9 +47,9 @@ public class MusicWidget extends AppWidgetProvider{
                         break;
 
                 }
-            }else if (MainActivity.UPDATE_ACTION.contains(action)){
-                int current = intent.getIntExtra(MainActivity.CURRENT, -1);
-                int status = intent.getIntExtra(MainActivity.STATUS, -1);
+            }else if (UPDATE_ACTION.contains(action)){
+                int current = intent.getIntExtra(CURRENT, -1);
+                int status = intent.getIntExtra(STATUS, -1);
                 update_View(context,AppWidgetManager.getInstance(context), current, status);
 
             }

@@ -1,11 +1,14 @@
 package com.example.w.musicbroadcast;
 
-import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Message;
+import android.os.Messenger;
+import android.os.RemoteException;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
@@ -13,46 +16,113 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
-import java.lang.ref.WeakReference;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener{
 
+    public static final int UPDATE_WHAT = 0x60;
 
-    //Activity广播接收器监听的行为
-    public static final String UPDATE_ACTION = "update_action";
-    public static final String CURRENT = "current";
-    public static final String STATUS = "status";
     private ImageView mPlay_imageView;
     private ImageView mImageView;
     ImageView prev_imageView;
     ImageView next_imageView;
-    private ActivityReceiver mActivityReceiver;
     private static  SeekBar mSeekBar;
-
     static boolean mStop = true;
     //歌曲名称数组
-    static String [] songName = new String[]{"黄昏晓", "不完美女孩", "玛卡瑞拉"};
+//    static String [] songName = new String[]{"黄昏晓", "不完美女孩", "玛卡瑞拉"};
     //歌曲图片数组
-    static int[] songPicture = new int[]{R.drawable.one,R.drawable.two, R.drawable.three};
-    private Intent mIntent ;
+//    static int[] songPicture = new int[]{R.drawable.one,R.drawable.two, R.drawable.three};
     private TextView mTextView;
+    boolean mBound;
 
-    private MusicService.activity_handler mActivity_handler = new MusicService.activity_handler();
+    Messenger mMessenger = new Messenger(new Handler(){
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+            switch (msg.what){
+                case UPDATE_WHAT:
+                    int current = msg.arg1;
+                    int status = msg.arg2;
+                    if (current >= 0){
+                        //mTextView.setText(songName[current]);
+                        //mImageView.setImageResource(songPicture[current]);
+                    }
+                    switch (status){
+                        case 0x11:
+                            mPlay_imageView.setImageResource(R.drawable.play);
+                            break;
+                        case 0x12:
+                            mPlay_imageView.setImageResource(R.drawable.pause);
+                    }
+                    break;
+                case 0x123:
+                    int Max = mSeekBar.getMax();
+                    int a  = msg.arg1 * Max / msg.arg2;
+                    mSeekBar.setProgress(a);
+                    break;
+            }
 
+        }
+    });
+    Messenger mServiceMessenger;
+    ServiceConnection mServiceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mServiceMessenger = new Messenger(service);
+            mBound = true;
+            Message message = Message.obtain(null, MusicService.MSG_REGISTER_CLIENT);
+            message.replyTo = mMessenger;
+            try {
+                mServiceMessenger.send(message);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+
+        }
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+
+            mServiceMessenger = null;
+            mBound = false;
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         initialView();
-        //注册广播接收器
-        mActivityReceiver = new ActivityReceiver();
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(UPDATE_ACTION);
-        registerReceiver(mActivityReceiver, intentFilter);
+        bindService(new Intent(MainActivity.this, MusicService.class), mServiceConnection, Context.BIND_AUTO_CREATE);
 
     }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (mBound){
+            Message message = Message.obtain(null,MusicService.MSG_UNREGISTER_CLIENT);
+            message.replyTo = mMessenger;
+            try {
+                mServiceMessenger.send(message);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
+        unbindService(mServiceConnection);
+        mBound = false;
+        stopService(new Intent(this, MusicService.class));
+        System.out.println("我是activity的destroy");
+    }
     /**
      * 初始化控件，并设置监听
      */
@@ -72,6 +142,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 seekBar.setProgress(progress);
+                Message message = Message.obtain(null, 0x124, seekBar.getProgress());
+                message.replyTo = mMessenger;
+                try {
+                    mServiceMessenger.send(message);
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+
             }
 
             @Override
@@ -83,10 +161,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             //滑块完成使的行为
             public void onStopTrackingTouch(SeekBar seekBar) {
 
-                Message message = mActivity_handler.obtainMessage();
-                message.what = 0x124;
-                message.arg1 = seekBar.getProgress();
-                mActivity_handler.sendMessage(message);
             }
         });
     }
@@ -97,66 +171,31 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         switch (v.getId()){
             case R.id.music_play_image:
                 if (mStop){
-                    mIntent = new Intent(this, MusicService.class);
-                    startService(mIntent);
                     mStop = false;
                 }
-                pushAction(1);
+                sendMessageToService(1);
                 break;
             case R.id.music_previous_image:
-                pushAction(2);
+                sendMessageToService(2);
                 break;
             case R.id.music_next_image:
-                pushAction(3);
+                sendMessageToService(3);
                 break;
         }
     }
 
-    public class  ActivityReceiver extends BroadcastReceiver{
 
-        //接收从Service传来的广播
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String update_action = intent.getAction();
-            if (UPDATE_ACTION.contains(update_action)){
-                int current = intent.getIntExtra(CURRENT, -1);
-                int status = intent.getIntExtra(STATUS, -1);
-                if (current >= 0){
-                    mTextView.setText(songName[current]);
-                    mImageView.setImageResource(songPicture[current]);
-                }
-                switch (status){
-                    case 0x11:
-                        mPlay_imageView.setImageResource(R.drawable.play);
-                        break;
-                    case 0x12:
-                        mPlay_imageView.setImageResource(R.drawable.pause);
-                }
-            }
-
+    //给MusicService发广播
+    private void sendMessageToService(int what){
+        Message message = Message.obtain(null, what);
+        message.replyTo = mMessenger;
+        try {
+            mServiceMessenger.send(message);
+        } catch (RemoteException e) {
+            e.printStackTrace();
         }
     }
 
-    //给MusicService发广播
-    private void pushAction(int action){
-        Intent intent = new Intent(MusicService.CTRL_ACTION);
-        intent.putExtra(MusicService.USER_ACTION_KEY, action);
-        sendBroadcast(intent);
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        unregisterReceiver(mActivityReceiver);
-        stopService(new Intent(this, MusicService.class));
-        System.out.println("我是activity的destroy");
-    }
 
     /**
      * 重写返回键，使之变成home键的功能
@@ -172,25 +211,4 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     }
 
-    public static class service_Handler extends Handler{
-
-        public final WeakReference<MainActivity> mMainActivityWeakReference;
-
-        public service_Handler(MainActivity activity) {
-
-            mMainActivityWeakReference = new WeakReference<>(activity);
-        }
-
-        @Override
-        //随歌曲的播放改变SeekBar的progress
-        public void handleMessage(Message msg) {
-            super.handleMessage(msg);
-            if (msg.what == 0x123){
-                int Max = mSeekBar.getMax();
-                int a  = msg.arg1 * Max / msg.arg2;
-                mSeekBar.setProgress(a);
-
-            }
-        }
-    }
 }
