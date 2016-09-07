@@ -4,10 +4,64 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:paddingLeft="@dimen/activity_horizontal_margin"
-    android:paddingRight="@dimen/activity_horizontal_margin"
-    android:paddingTop="@dimen/activity_vertical_margin"
-    android:paddingBottom="@dimen/activity_vertical_margin"
     tools:context="com.example.w.musicbroadcast.MusicListActivity">
+
+    <RelativeLayout
+        android:id="@+id/button_line"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:background="@color/colorPrimary"
+        android:layout_alignParentBottom="true">
+
+        <ImageView
+            android:id="@+id/mini_next"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/mini_next"
+            android:layout_centerVertical="true"
+            android:layout_alignParentEnd="true"
+            android:layout_marginEnd="10dp"
+            android:layout_marginStart="16dp"/>
+        <ImageView
+            android:id="@+id/mini_play"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/mini_play"
+            android:layout_centerVertical="true"
+            android:layout_toStartOf="@id/mini_next"/>
+        <ImageView
+            android:id="@+id/picture"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/picture"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="6dp"/>
+        <TextView
+            android:id="@+id/mini_song_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="未知歌曲"
+            android:layout_alignTop="@id/picture"
+            android:layout_toEndOf="@id/picture"
+            android:layout_marginStart="4dp"/>
+        <TextView
+            android:id="@+id/mini_singer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="未知歌手"
+            android:textSize="12sp"
+            android:layout_alignBottom="@id/picture"
+            android:layout_toEndOf="@id/picture"
+            android:layout_marginStart="4dp"
+            />
+
+    </RelativeLayout>
+    <ListView
+        android:id="@+id/music_list"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_marginStart="16dp"
+        android:layout_above="@id/button_line">
+    </ListView>
 
 </RelativeLayout>

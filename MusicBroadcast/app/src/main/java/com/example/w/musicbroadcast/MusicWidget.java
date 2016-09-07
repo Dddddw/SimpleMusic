@@ -102,8 +102,8 @@ public class MusicWidget extends AppWidgetProvider{
         remoteViews.setOnClickPendingIntent(R.id.music_previous_button, getPendingIntent(context, 2, "previous"));
 
         if (current >= 0){
-            remoteViews.setTextViewText(R.id.music_name_text, MainActivity.songName[current]);
-            remoteViews.setImageViewResource(R.id.music_image, MainActivity.songPicture[current]);
+//            remoteViews.setTextViewText(R.id.music_name_text, MainActivity.songName[current]);
+//            remoteViews.setImageViewResource(R.id.music_image, MainActivity.songPicture[current]);
         }
         switch (status){
             case 0x11:

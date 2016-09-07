@@ -5,9 +5,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.res.AssetFileDescriptor;
-import android.content.res.AssetManager;
 import android.media.MediaPlayer;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -41,10 +40,12 @@ public class MusicService extends Service{
 
     ArrayList<Messenger> mClients = new ArrayList<>();
 
+    /**
+     * 绑定，解绑服务
+     */
     public static final int MSG_REGISTER_CLIENT = 10;
     public static final int MSG_UNREGISTER_CLIENT = 11;
 
-    AssetManager am;
     MusicServiceReceiver musicServiceReceiver;
     private static MediaPlayer mMediaPlayer;
 
@@ -59,21 +60,26 @@ public class MusicService extends Service{
                 case MSG_UNREGISTER_CLIENT:
                     mClients.remove(msg.replyTo);
                     break;
-                case 1:
-                    if (mPlay){
-                        Pause();
-                    }else {
-                        Play();
-                        mPlay = true;
+                case MusicListActivity.LIST_MSG_PLAY:
+                    Bundle data = msg.getData();
+                    playSong(data.getString("musicUrl"));
+                    Message message = Message.obtain(null, 0x70, 0x12 , 10010);
+                    for(int i=mClients.size()-1; i>=0; i--){
+                        try {
+                            mClients.get(i).send(message);
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                            mClients.remove(i);
+                        }
                     }
                     break;
-                case 2:
+                case 0x61:
                     playPre();
                     break;
-                case 3:
+                case 0x63:
                     playNext();
                     break;
-                case 0x124:
+                case 0x64:
                     mMediaPlayer.seekTo(mMediaPlayer.getDuration() * (int)(msg.obj) / 999);
                     break;
                 default:
@@ -101,12 +107,8 @@ public class MusicService extends Service{
         filter.addAction(CTRL_ACTION);
         registerReceiver(musicServiceReceiver, filter);
 
-        am = getAssets();
         mMediaPlayer = new MediaPlayer();
-//        //Service开始就播放指定的第一首歌曲
-//        playSong(songList[current]);
-//        mPlay = true;
-//
+
 //        pushBackAction(0x12, current);
 
         //一首歌播放完的时候自动播放下一曲
@@ -175,22 +177,20 @@ public class MusicService extends Service{
     /**
      * 播放歌曲
      *
-     * @param ids 歌曲名称
+     *
      */
-    private void playSong(String ids){
-
+    private void playSong(String url){
            try {
                isPrepare = false;
-               AssetFileDescriptor afd = am.openFd(ids);
                mMediaPlayer.reset();
-               mMediaPlayer.setDataSource(afd.getFileDescriptor(),
-                           afd.getStartOffset(), afd.getLength());
+               mMediaPlayer.setDataSource(url);
                mMediaPlayer.prepare();
                isPrepare = true;
                mMediaPlayer.start();
                } catch (Exception e) {
                    e.printStackTrace();
                }
+
     }
 
 
@@ -278,7 +278,7 @@ public class MusicService extends Service{
 
 
     private void sendMessageToActivity(int status , int current){
-        Message message = Message.obtain(null, MainActivity.UPDATE_WHAT, status, current);
+        Message message = Message.obtain(null, 0, status, current);
         try {
             mClients.get(0).send(message);
         } catch (RemoteException e) {
