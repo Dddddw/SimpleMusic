@@ -29,6 +29,8 @@ public class MusicService extends Service{
     //Service监听的行为
     public static final String CTRL_ACTION = "ctrl_action";
     public static final String USER_ACTION_KEY = "user_action_key";
+    public static final int PLAY_PAUSE_WHAT = 0x70;
+    public static final int AUTO_PALY_NEXT_WHAT = 0x71;
     //0x11,暂停播放，0x12,正在播放
     //记录当前播放的音乐
     int current = 0;
@@ -63,21 +65,21 @@ public class MusicService extends Service{
                 case MusicListActivity.LIST_MSG_PLAY:
                     Bundle data = msg.getData();
                     playSong(data.getString("musicUrl"));
-                    Message message = Message.obtain(null, 0x70, 0x12 , 10010);
-                    for(int i=mClients.size()-1; i>=0; i--){
-                        try {
-                            mClients.get(i).send(message);
-                        } catch (RemoteException e) {
-                            e.printStackTrace();
-                            mClients.remove(i);
-                        }
-                    }
                     break;
                 case 0x61:
-                    playPre();
+                    if (mPlay){
+                        Pause();
+                    }else {
+                        Play();
+                        mPlay = true;
+                    }
                     break;
-                case 0x63:
-                    playNext();
+                case 0x62:
+                    Bundle data1 = msg.getData();
+                    if (!mPlay){
+                        sendMessageToActivity(PLAY_PAUSE_WHAT, 0x12, current);
+                    }
+                    playSong(data1.getString("musicUrl"));
                     break;
                 case 0x64:
                     mMediaPlayer.seekTo(mMediaPlayer.getDuration() * (int)(msg.obj) / 999);
@@ -115,7 +117,7 @@ public class MusicService extends Service{
         mMediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
             public void onCompletion(MediaPlayer mp) {
-                playNext();
+                sendMessageToActivity(AUTO_PALY_NEXT_WHAT, 1000, 1000);
             }
         });
         //MediaPlayer seekTo完了调用的监听器
@@ -129,7 +131,7 @@ public class MusicService extends Service{
             }
         });
 
-        refreshSeekBar();
+//        refreshSeekBar();
 
     }
 
@@ -156,23 +158,23 @@ public class MusicService extends Service{
      * 因为定时器一直在运行，所以需要加个判断，去判断MediaPlayer是否准备好
      * 在未准备好之前调用getDuration()会报错
      */
-    private void refreshSeekBar() {
-            mTimer.schedule(new TimerTask() {
-                @Override
-                public void run() {
-                    while (isPrepare){
-                        Message message = Message.obtain(null, 0x123, mMediaPlayer.getCurrentPosition(),mMediaPlayer.getDuration());
-                        try {
-                            mClients.get(0).send(message);
-                        } catch (RemoteException e) {
-                            e.printStackTrace();
-                        }
-                    }
-
-                }
-            },0 ,1000);
-
-    }
+//    private void refreshSeekBar() {
+//            mTimer.schedule(new TimerTask() {
+//                @Override
+//                public void run() {
+////                    while (isPrepare){
+////                        Message message = Message.obtain(null, 0x123, mMediaPlayer.getCurrentPosition(),mMediaPlayer.getDuration());
+////                        try {
+////                            mClients.get(0).send(message);
+////                        } catch (RemoteException e) {
+////                            e.printStackTrace();
+////                        }
+////                    }
+//
+//                }
+//            },0 ,1000);
+//
+//    }
 
     /**
      * 播放歌曲
@@ -190,6 +192,7 @@ public class MusicService extends Service{
                } catch (Exception e) {
                    e.printStackTrace();
                }
+        mPlay = true;
 
     }
 
@@ -213,10 +216,10 @@ public class MusicService extends Service{
                         }
                         break;
                     case 2:
-                        playPre();
+//                        playPre();
                         break;
                     case 3:
-                        playNext();
+//                        playNext();
                         break;
 
                 }
@@ -235,8 +238,7 @@ public class MusicService extends Service{
 
         mPlay = true;
         mMediaPlayer.start();
-        sendMessageToActivity(0x12, current);
-        pushBackAction(0x12, current);
+        sendMessageToActivity(PLAY_PAUSE_WHAT, 0x12, current);
         System.out.println(2);
     }
 
@@ -246,41 +248,17 @@ public class MusicService extends Service{
     private void Pause(){
         mPlay = false;
         mMediaPlayer.pause();
-        sendMessageToActivity(0x11, current);
-        pushBackAction(0x11, current);
-    }
-
-    /**
-     * 播放下一曲
-     */
-    private void playNext(){
-        if (++current > 2){
-            current = 0;
-        }
-        //playSong(songList[current]);
-        sendMessageToActivity(0x12, current);
-        pushBackAction(0x12, current);
-        mPlay = true;
-    }
-
-    /**
-     * 播放上一曲
-     */
-    private void playPre(){
-        if (--current < 0){
-            current = 2;
-        }
-        //playSong(songList[current]);
-        sendMessageToActivity(0x12, current);
-        pushBackAction(0x12, current);
-        mPlay = true;
+        sendMessageToActivity(PLAY_PAUSE_WHAT,0x11, current);
     }
 
 
-    private void sendMessageToActivity(int status , int current){
-        Message message = Message.obtain(null, 0, status, current);
+
+    private void sendMessageToActivity(int what, int status , int arg2){
+        Message message = Message.obtain(null, what, status, arg2);
         try {
-            mClients.get(0).send(message);
+            for (int i = mClients.size() - 1; i >= 0 ; i--){
+                mClients.get(i).send(message);
+            }
         } catch (RemoteException e) {
             e.printStackTrace();
         }

@@ -20,30 +20,31 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ImageView;
 import android.widget.ListView;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class MusicListActivity extends AppCompatActivity implements AdapterView.OnItemClickListener{
+public class MusicListActivity extends AppCompatActivity implements AdapterView.OnItemClickListener, View.OnClickListener{
 
     public static final int LIST_MSG_PLAY = 0x60;
     ContentResolver mContentResolver;
     private ListView mMusicLists;
 
-    private List<MusicInfo> mMusicInfoList;
+    private ArrayList<MusicInfo> mMusicInfoList;
     boolean mBound;
     Messenger mServiceMessenger;
     private ImageView mMiniPlay;
     private TextView mSongName;
     private TextView mSinger;
+    boolean mIsMusicSelected = false;
 
     Messenger mMessenger = new Messenger(new Handler(){
         @Override
         public void handleMessage(Message msg) {
-            Log.i("well", Thread.currentThread() + "");
             switch (msg.what){
-
                 case 0x70:
                     int status = msg.arg1;
                     switch (status){
@@ -51,9 +52,7 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
                             mMiniPlay.setImageResource(R.drawable.mini_play);
                             break;
                         case 0x12:
-                            Log.i("well","变成暂停1");
-                            mMiniPlay.setImageResource(R.drawable.mini_pause);
-                            Log.i("well", "变成暂停2");
+                            mMiniPlay.setImageResource(R.drawable.mini_play);
                             break;
                     }
                     break;
@@ -68,13 +67,14 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
 
         }
     });
-
+    private int mPosition;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_music_list);
+        Log.i("well", "onCreate");
 
         initViews();
         mContentResolver = getContentResolver();
@@ -89,25 +89,89 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
 
         mMusicLists = (ListView) findViewById(R.id.music_list);
         mMiniPlay = (ImageView) findViewById(R.id.mini_play);
+        ImageView miniNext = (ImageView) findViewById(R.id.mini_next);
         mSongName = (TextView) findViewById(R.id.mini_song_name);
         mSinger = (TextView) findViewById(R.id.mini_singer);
 
         mMusicLists.setOnItemClickListener(this);
+
+        RelativeLayout relativeLayout = (RelativeLayout)findViewById(R.id.button_line);
+
+        relativeLayout.setOnClickListener(this);
+
+        miniNext.setOnClickListener(this);
+        mMiniPlay.setOnClickListener(this);
     }
 
     @Override
+    public void onClick(View v) {
+            switch (v.getId()){
+                case R.id.button_line:
+                    Intent intent = new Intent(MusicListActivity.this, MainActivity.class);
+                    Bundle data = new Bundle();
+                    data.putParcelableArrayList("musicInfoList", mMusicInfoList);
+                    intent.putExtra("data", data);
+                    intent.setAction("buttonToView");
+                    startActivity(intent);
+                    data.clear();
+                    break;
+                case R.id.mini_play:
+                    if (!mIsMusicSelected){
+                        Toast.makeText(MusicListActivity.this, "请先选择歌曲", Toast.LENGTH_SHORT).show();
+                    }else {
+                        Message message =  Message.obtain(null, 0x61);
+                        message.replyTo = mMessenger;
+                        try {
+                            mServiceMessenger.send(message);
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                        }
+                        if (MainActivity.mStop){
+                            MainActivity.mStop = false;
+                        }
+                    }
+
+                    break;
+                case R.id.mini_next:
+                    if (!mIsMusicSelected){
+                        Toast.makeText(MusicListActivity.this, "请先选择歌曲", Toast.LENGTH_SHORT).show();
+                    }else {
+                        Message message1 = Message.obtain(null, 0x62);
+                        Bundle data1 = new Bundle();
+                        data1.putString("musicUrl", mMusicInfoList.get(mPosition).getUrl());
+                        message1.setData(data1);
+                        message1.replyTo = mMessenger;
+                        try {
+                            mServiceMessenger.send(message1);
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                        }
+                        MainActivity.mStop = false;
+                        data1.clear();
+                        break;
+                    }
+            }
+        }
+
+
+
+    @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-        //给服务发消息，播放音乐，同时更新MainActivity的ui和MusicListActivity的ui，跳转到MainActivity。
+        //给服务发消息，播放音乐，跳转到MainActivity。
         Intent intent = new Intent(MusicListActivity.this, MainActivity.class);
-        intent.putExtra("musicInfo", mMusicInfoList.get(position));
+        Bundle data = new Bundle();
+        data.putParcelableArrayList("musicInfoList", mMusicInfoList);
+        data.putInt("position", position);
+        intent.putExtra("data", data);
         intent.setAction("listTonView");
         startActivity(intent);
+        data.clear();
 
         Message message = Message.obtain(null, LIST_MSG_PLAY);
-        Bundle data = new Bundle();
         data.putString("musicUrl", mMusicInfoList.get(position).getUrl());
         data.putInt("musicDuration", mMusicInfoList.get(position).getDuration());
         message.setData(data);
+
         try {
             mServiceMessenger.send(message);
         } catch (RemoteException e) {
@@ -115,28 +179,36 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
         }
 
 
-        mSongName.setText(mMusicInfoList.get(position).getTitle());
-        mSinger.setText(mMusicInfoList.get(position).getArtist());
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
 
     }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
 
-
-    //给MusicService发广播
-    private void sendMessageToService(int what){
-        Message message = Message.obtain(null, what);
-        message.replyTo = mMessenger;
-        try {
-            mServiceMessenger.send(message);
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.i("well", "onStop");
+    }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        Log.i("well", "onDestroy");
         if (mBound){
             Message message = Message.obtain(null,MusicService.MSG_UNREGISTER_CLIENT);
             message.replyTo = mMessenger;
@@ -156,7 +228,7 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
      *
      * @return 歌曲信息列表
      */
-    private List<MusicInfo> getMusicList(){
+    private ArrayList<MusicInfo> getMusicList(){
         Cursor cursor = mContentResolver.query(Media.EXTERNAL_CONTENT_URI, null, null, null, null);
         mMusicInfoList = new ArrayList<>();
         if (cursor == null){
@@ -208,6 +280,7 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
         }
     };
 
+
     class MusicTask extends AsyncTask<String , Integer, List<MusicInfo>>{
 
         @Override
@@ -220,6 +293,17 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
             super.onPostExecute(musicInfos);
             MusicAdapter musicAdapter = new MusicAdapter(MusicListActivity.this, musicInfos);
             mMusicLists.setAdapter(musicAdapter);
+
+            Intent intent = getIntent();
+            if (intent.getBooleanExtra("play", false)){
+                Log.i("well","底下图标文字变化");
+                mMiniPlay.setImageResource(R.drawable.mini_pause);
+                mPosition = intent.getIntExtra("position", -1);
+                mSongName.setText(musicInfos.get(mPosition).getTitle());
+                mSinger.setText(musicInfos.get(mPosition).getArtist());
+
+            }
+
 
         }
     }
