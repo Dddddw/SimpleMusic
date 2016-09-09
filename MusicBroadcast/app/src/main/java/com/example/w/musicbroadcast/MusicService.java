@@ -18,7 +18,6 @@ import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.Timer;
-import java.util.TimerTask;
 
 
 /**
@@ -30,7 +29,7 @@ public class MusicService extends Service{
     public static final String CTRL_ACTION = "ctrl_action";
     public static final String USER_ACTION_KEY = "user_action_key";
     public static final int PLAY_PAUSE_WHAT = 0x70;
-    public static final int AUTO_PALY_NEXT_WHAT = 0x71;
+    public static final int AUTO_PLAY_NEXT_WHAT = 0x71;
     //0x11,暂停播放，0x12,正在播放
     //记录当前播放的音乐
     int current = 0;
@@ -72,6 +71,7 @@ public class MusicService extends Service{
                     }else {
                         Play();
                         mPlay = true;
+                        Log.i("well", "mPlay:true");
                     }
                     break;
                 case 0x62:
@@ -117,7 +117,7 @@ public class MusicService extends Service{
         mMediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
             public void onCompletion(MediaPlayer mp) {
-                sendMessageToActivity(AUTO_PALY_NEXT_WHAT, 1000, 1000);
+                sendMessageToActivity(AUTO_PLAY_NEXT_WHAT, 1000, 1000);
             }
         });
         //MediaPlayer seekTo完了调用的监听器
@@ -193,6 +193,7 @@ public class MusicService extends Service{
                    e.printStackTrace();
                }
         mPlay = true;
+        Log.i("well", "mPlay:true");
 
     }
 
@@ -213,6 +214,7 @@ public class MusicService extends Service{
                         }else {
                             Play();
                             mPlay = true;
+                            Log.i("well", "mPlay:true");
                         }
                         break;
                     case 2:
@@ -247,6 +249,7 @@ public class MusicService extends Service{
      */
     private void Pause(){
         mPlay = false;
+        Log.i("well", "mPlay:false");
         mMediaPlayer.pause();
         sendMessageToActivity(PLAY_PAUSE_WHAT,0x11, current);
     }

@@ -4,7 +4,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -31,13 +30,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     ImageView prev_imageView;
     ImageView next_imageView;
     private static  SeekBar mSeekBar;
-    static boolean mStop = true;
+
+    /**
+     * 判断是否绑定服务
+     */
     boolean mBound;
     private int mPosition;
     private ArrayList<MusicInfo> mMusicInfoList;
     Messenger mServiceMessenger;
-    SharedPreferences mShared;
-    static boolean mIsMusicSelected = true;
+
+    boolean mIsMusicSelected = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,33 +51,34 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
 
-        mShared = getSharedPreferences("musicInfo", MODE_PRIVATE);
 
         Intent intent = getIntent();
+        String action = intent.getAction();
         Bundle data = intent.getBundleExtra("data");
         mMusicInfoList = data.getParcelableArrayList("musicInfoList");
-        String action = intent.getAction();
+        mPosition = data.getInt("position", -1);
+
         switch (action){
             case "listTonView":
-                mPosition = data.getInt("position");
+                mIsMusicSelected = data.getBoolean("isMusicSelected");
                 mTextView.setText(mMusicInfoList.get(mPosition).getTitle());
                 mPlay_imageView.setImageResource(R.drawable.pause);
-                mStop = false;
                 break;
             case "buttonToView":
-                mPosition = mShared.getInt("position", -1);
-                if (mStop){
+                if (!MusicListActivity.mPlay){
                     if (mPosition == -1){
                         //没有选音乐文件的时候
-                        mIsMusicSelected = false;
+                        Toast.makeText(MainActivity.this, "请先选择音乐", Toast.LENGTH_SHORT).show();
                     }else {
                         //歌曲在播放但是暂停的时候
                         mTextView.setText(mMusicInfoList.get(mPosition).getTitle());
+                        mIsMusicSelected = true;
                     }
                 }else{
                     //歌曲正在播放
                     mTextView.setText(mMusicInfoList.get(mPosition).getTitle());
                     mPlay_imageView.setImageResource(R.drawable.pause);
+                    mIsMusicSelected = true;
                 }
 
                 break;
@@ -104,7 +107,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     }
                     break;
 
-                case MusicService.AUTO_PALY_NEXT_WHAT:
+                case MusicService.AUTO_PLAY_NEXT_WHAT:
                     preOrNext(playNext());
                     break;
             }
@@ -142,8 +145,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     } catch (RemoteException e) {
                         e.printStackTrace();
                     }
-                    if (mStop){
-                        mStop = false;
+                    if (!MusicListActivity.mPlay){
+                        MusicListActivity.mPlay = true;
                     }
                     break;
                 case R.id.music_previous_image:
@@ -187,7 +190,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             mPosition = 0;
         }
         Log.i("po","" + mPosition);
-        mStop = false;
         mTextView.setText(mMusicInfoList.get(mPosition).getTitle());
         return mMusicInfoList.get(mPosition).getUrl();
     }
@@ -202,8 +204,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             mPosition = (mMusicInfoList.size() - 1);
         }
         Log.i("po","" + mPosition);
-        mStop = false;
         mTextView.setText(mMusicInfoList.get(mPosition).getTitle());
+        MusicListActivity.mPlay = true;
         return mMusicInfoList.get(mPosition).getUrl();
     }
 
@@ -213,14 +215,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         switch (item.getItemId()){
             case android.R.id.home:
                 Intent intent = new Intent(MainActivity.this, MusicListActivity.class);
-                if (!mStop){
-                    Log.i("well", "传过去true");
-                    intent.putExtra("play", true);
+                if (mIsMusicSelected){
+                    intent.putExtra("position", mPosition);
+                    intent.putExtra("isMusicSelected", mIsMusicSelected);
                 }
-                intent.putExtra("position", mPosition);
                 startActivity(intent);
 
-                mShared.edit().putInt("position", mPosition).apply();
                 break;
         }
         return true;
