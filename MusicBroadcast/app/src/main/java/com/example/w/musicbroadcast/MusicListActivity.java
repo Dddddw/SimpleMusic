@@ -41,7 +41,7 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
     private TextView mSinger;
     private int mPosition;
 
-    static boolean mPlay = false;
+    boolean mPlay = false;
     /**
      * 判断歌曲是否选择
      */
@@ -64,9 +64,6 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
                     break;
                 case MusicService.AUTO_PLAY_NEXT_WHAT:
                     miniPlayNext();
-                    //int Max = mSeekBar.getMax();
-                   // int a  = msg.arg1 * Max / msg.arg2;
-                   // mSeekBar.setProgress(a);
                     break;
                 default:
                     super.handleMessage(msg);
@@ -75,7 +72,28 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
         }
     });
 
+    ServiceConnection mServiceConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
 
+            mServiceMessenger = new Messenger(service);
+            mBound = true;
+            Message message = Message.obtain(null, MusicService.MSG_REGISTER_CLIENT);
+            message.replyTo = mMessenger;
+            try {
+                mServiceMessenger.send(message);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+
+        }
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+
+            mServiceMessenger = null;
+            mBound = false;
+        }
+    };
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -117,7 +135,8 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
                     Bundle data = new Bundle();
                     data.putParcelableArrayList("musicInfoList", mMusicInfoList);
                     if (mIsMusicSelected){
-                    data.putInt("position", mPosition);
+                        data.putInt("position", mPosition);
+                        data.putBoolean("isPlay", mPlay);
                     }
                     intent.putExtra("data", data);
                     intent.setAction("buttonToView");
@@ -136,9 +155,7 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
                             e.printStackTrace();
                         }
                     }
-                    if (!mPlay){
-                        mPlay = true;
-                    }
+                    mPlay = !mPlay;
                     System.out.println(mPlay);
                     break;
                 case R.id.mini_next:
@@ -153,22 +170,22 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
 
     private void miniPlayNext() {
         mPlay = true;
-        Message message1 = Message.obtain(null, 0x62);
-        Bundle data1 = new Bundle();
         if ( ++mPosition > (mMusicInfoList.size() - 1)){
             mPosition = 0;
         }
-        data1.putString("musicUrl", mMusicInfoList.get(mPosition).getUrl());
-        message1.setData(data1);
-        message1.replyTo = mMessenger;
+        Message message = Message.obtain(null, 0x62);
+        Bundle data = new Bundle();
+        data.putString("musicUrl", mMusicInfoList.get(mPosition).getUrl());
+        message.setData(data);
+        message.replyTo = mMessenger;
         try {
-            mServiceMessenger.send(message1);
+            mServiceMessenger.send(message);
         } catch (RemoteException e) {
             e.printStackTrace();
         }
         mSongName.setText(mMusicInfoList.get(mPosition).getTitle());
         mSinger.setText(mMusicInfoList.get(mPosition).getArtist());
-        data1.clear();
+        data.clear();
     }
 
 
@@ -176,7 +193,7 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
         //给服务发消息，播放音乐，跳转到MainActivity。
         mIsMusicSelected = true;
-        mPlay = true;
+        //mPlay = true;
         Intent intent = new Intent(MusicListActivity.this, MainActivity.class);
         Bundle data = new Bundle();
         data.putParcelableArrayList("musicInfoList", mMusicInfoList);
@@ -189,7 +206,8 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
 
         Message message = Message.obtain(null, LIST_MSG_PLAY);
         data.putString("musicUrl", mMusicInfoList.get(position).getUrl());
-        data.putInt("musicDuration", mMusicInfoList.get(position).getDuration());
+        data.putString("musicName", mMusicInfoList.get(position).getTitle());
+        data.putString("musicSinger", mMusicInfoList.get(position).getArtist());
         message.setData(data);
 
         try {
@@ -276,28 +294,7 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
     }
 
 
-    ServiceConnection mServiceConnection = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
 
-            mServiceMessenger = new Messenger(service);
-            mBound = true;
-            Message message = Message.obtain(null, MusicService.MSG_REGISTER_CLIENT);
-            message.replyTo = mMessenger;
-            try {
-                mServiceMessenger.send(message);
-            } catch (RemoteException e) {
-                e.printStackTrace();
-            }
-
-        }
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-
-            mServiceMessenger = null;
-            mBound = false;
-        }
-    };
 
 
     class MusicTask extends AsyncTask<String , Integer, List<MusicInfo>>{
@@ -315,8 +312,8 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
 
             Intent intent = getIntent();
             mIsMusicSelected = intent.getBooleanExtra("isMusicSelected",false);
+            mPlay = intent.getBooleanExtra("isPlay", false);
             if (mIsMusicSelected){
-                System.out.println(mPlay);
                 if (mPlay) {
                     Log.i("well", "底下图标文字变化");
                     mMiniPlay.setImageResource(R.drawable.mini_pause);

@@ -31,10 +31,10 @@ public class MusicWidget extends AppWidgetProvider{
                 switch (button_name){
                     case "play":
                         pushAction(context, 1);
-                        if (!MusicListActivity.mPlay){
+                        if (!MusicService.mPlay){
                             Intent mIntent = new Intent(context, MusicService.class);
                             context.startService(mIntent);
-                            MusicListActivity.mPlay = true;
+                            MusicService.mPlay = true;
                         }
                         System.out.println("我是播放");
                         break;

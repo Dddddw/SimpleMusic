@@ -1,6 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent">
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="64dp"
+    android:paddingStart="16dp"
+    tools:context="com.example.w.musicbroadcast.MusicListActivity">
 
+    <ImageView
+        android:id="@+id/no_next"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@drawable/mini_next"
+        android:layout_centerVertical="true"
+        android:layout_alignParentEnd="true"
+        android:layout_marginEnd="10dp"
+        android:layout_marginStart="14dp"/>
+    <ImageView
+        android:id="@+id/no_play"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@drawable/mini_play"
+        android:layout_centerVertical="true"
+        android:layout_toStartOf="@id/no_next"/>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_centerVertical="true">
+        <TextView
+            android:id="@+id/no_song_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="未知歌曲"
+            android:textSize="16sp"/>
+        <TextView
+            android:id="@+id/no_singer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="未知歌手"
+            android:textSize="14sp"
+            android:layout_marginTop="10dp"
+            />
+
+    </LinearLayout>
 </RelativeLayout>

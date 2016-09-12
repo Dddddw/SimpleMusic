@@ -1,5 +1,7 @@
 package com.example.w.musicbroadcast;
 
+import android.app.Notification;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -12,12 +14,15 @@ import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
+import android.widget.RemoteViews;
 
 
 import java.util.ArrayList;
 import java.util.Timer;
+import java.util.TimerTask;
 
 
 /**
@@ -26,18 +31,25 @@ import java.util.Timer;
  */
 public class MusicService extends Service{
     //Service监听的行为
-    public static final String CTRL_ACTION = "ctrl_action";
+    public static final String NOTIFICATION_ACTION = "notification_action";
+    public static final String CTRL_ACTION = "ctrlActionFromNotification";
     public static final String USER_ACTION_KEY = "user_action_key";
+
     public static final int PLAY_PAUSE_WHAT = 0x70;
     public static final int AUTO_PLAY_NEXT_WHAT = 0x71;
+    public static final int REFRESH_SEEK_BAR_WHAT = 0x72;
     //0x11,暂停播放，0x12,正在播放
     //记录当前播放的音乐
     int current = 0;
     //歌曲是否在播放
-    boolean mPlay = false;
+    static boolean mPlay = false;
     //歌曲是否准备好了
     boolean isPrepare;
+
+    boolean flag = false;
     Timer mTimer = new Timer();
+    MusicServiceReceiver mMusicServiceReceiver;
+
 
     ArrayList<Messenger> mClients = new ArrayList<>();
 
@@ -47,7 +59,6 @@ public class MusicService extends Service{
     public static final int MSG_REGISTER_CLIENT = 10;
     public static final int MSG_UNREGISTER_CLIENT = 11;
 
-    MusicServiceReceiver musicServiceReceiver;
     private static MediaPlayer mMediaPlayer;
 
 
@@ -63,6 +74,7 @@ public class MusicService extends Service{
                     break;
                 case MusicListActivity.LIST_MSG_PLAY:
                     Bundle data = msg.getData();
+                    updateText(getApplicationContext(), 1,data.getString("musicName"), data.getString("musicSinger"));
                     playSong(data.getString("musicUrl"));
                     break;
                 case 0x61:
@@ -70,19 +82,24 @@ public class MusicService extends Service{
                         Pause();
                     }else {
                         Play();
-                        mPlay = true;
                         Log.i("well", "mPlay:true");
                     }
                     break;
                 case 0x62:
-                    Bundle data1 = msg.getData();
                     if (!mPlay){
                         sendMessageToActivity(PLAY_PAUSE_WHAT, 0x12, current);
+                        updateImage(getApplicationContext(),0x12);
                     }
+                    Bundle data1 = msg.getData();
+                    updateText(getApplicationContext(),1,data1.getString("musicName"),data1.getString("musicSinger"));
                     playSong(data1.getString("musicUrl"));
+
                     break;
-                case 0x64:
-                    mMediaPlayer.seekTo(mMediaPlayer.getDuration() * (int)(msg.obj) / 999);
+                case 0x63:
+                    if (msg.arg2 == 1){
+                        mMediaPlayer.seekTo(mMediaPlayer.getDuration() * (msg.arg1) / 999);
+                        flag = true;
+                    }
                     break;
                 default:
                     super.handleMessage(msg);
@@ -90,6 +107,7 @@ public class MusicService extends Service{
             }
         }
     });
+
 
     @Nullable
     @Override
@@ -101,39 +119,85 @@ public class MusicService extends Service{
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.i(this.getClass().getSimpleName(), "onCreate");
-
-        //注册广播
-        musicServiceReceiver = new MusicServiceReceiver();
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(CTRL_ACTION);
-        registerReceiver(musicServiceReceiver, filter);
-
         mMediaPlayer = new MediaPlayer();
+        //注册广播
+        mMusicServiceReceiver = new MusicServiceReceiver();
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(NOTIFICATION_ACTION);
+        registerReceiver(mMusicServiceReceiver, filter);
 
-//        pushBackAction(0x12, current);
+//      pushBackAction(0x12, current);
 
-        //一首歌播放完的时候自动播放下一曲
         mMediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
             public void onCompletion(MediaPlayer mp) {
                 sendMessageToActivity(AUTO_PLAY_NEXT_WHAT, 1000, 1000);
             }
         });
-        //MediaPlayer seekTo完了调用的监听器
+
         mMediaPlayer.setOnSeekCompleteListener(new MediaPlayer.OnSeekCompleteListener() {
             @Override
             public void onSeekComplete(MediaPlayer mp) {
                 if (!mPlay){
                     return;
                 }
-                mMediaPlayer.start();
+                mp.start();
+
             }
         });
 
-//        refreshSeekBar();
+        updateText(getApplicationContext(), 0, null,null);
+        refreshSeekBar();
+    }
+
+    private PendingIntent getPendingIntent(Context context, int requestCode, String buttonName) {
+        Intent intent = new Intent(NOTIFICATION_ACTION);
+        intent.putExtra(NOTIFICATION_ACTION, buttonName);
+        return PendingIntent.getBroadcast(context, requestCode, intent, 0);
+    }
+
+    private Notification.Builder getBuilder() {
+
+        return new Notification.Builder(this.getApplicationContext())
+                .setWhen(System.currentTimeMillis())
+                .setSmallIcon(R.drawable.music_player_mini);
 
     }
+    @NonNull
+    private RemoteViews getRemoteViews(Context context) {
+        RemoteViews remoteViews = new RemoteViews(getPackageName(), R.layout.notification_layout);
+        remoteViews.setOnClickPendingIntent(R.id.no_play, getPendingIntent(context, 1 ,"play"));
+        remoteViews.setOnClickPendingIntent(R.id.no_next, getPendingIntent(context, 2 ,"next"));
+        return remoteViews;
+    }
+
+    private void updateText(Context context, int a, String songName, String singer){
+
+        RemoteViews remoteViews = getRemoteViews(context);
+        if (a == 1) {
+            remoteViews.setTextViewText(R.id.no_song_name, songName);
+            remoteViews.setTextViewText(R.id.no_singer,singer);
+        }
+        Notification notification = getBuilder().setContent(remoteViews).build();
+        startForeground(2016, notification);
+    }
+
+    private void updateImage(Context context, int status){
+
+        RemoteViews remoteViews = getRemoteViews(context);
+        switch (status){
+            case 0x11:
+                remoteViews.setImageViewResource(R.id.no_play, R.drawable.mini_play);
+                break;
+            case 0x12:
+                remoteViews.setImageViewResource(R.id.no_play, R.drawable.mini_pause);
+                break;
+        }
+        Notification notification = getBuilder().setContent(remoteViews).build();
+        startForeground(2016, notification);
+    }
+
+
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -147,8 +211,9 @@ public class MusicService extends Service{
         super.onDestroy();
         isPrepare = false;
         mTimer.cancel();
-        unregisterReceiver(musicServiceReceiver);
         mMediaPlayer.release();
+        stopForeground(true);
+        unregisterReceiver(mMusicServiceReceiver);
         System.out.println("我是service的destroy");
 
 
@@ -158,23 +223,16 @@ public class MusicService extends Service{
      * 因为定时器一直在运行，所以需要加个判断，去判断MediaPlayer是否准备好
      * 在未准备好之前调用getDuration()会报错
      */
-//    private void refreshSeekBar() {
-//            mTimer.schedule(new TimerTask() {
-//                @Override
-//                public void run() {
-////                    while (isPrepare){
-////                        Message message = Message.obtain(null, 0x123, mMediaPlayer.getCurrentPosition(),mMediaPlayer.getDuration());
-////                        try {
-////                            mClients.get(0).send(message);
-////                        } catch (RemoteException e) {
-////                            e.printStackTrace();
-////                        }
-////                    }
-//
-//                }
-//            },0 ,1000);
-//
-//    }
+    private  void refreshSeekBar() {
+                mTimer.schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        while (isPrepare){
+                            sendMessageToActivity(REFRESH_SEEK_BAR_WHAT, mMediaPlayer.getCurrentPosition(),mMediaPlayer.getDuration());
+                        }
+                    }
+                },0 ,1000);
+    }
 
     /**
      * 播放歌曲
@@ -193,64 +251,27 @@ public class MusicService extends Service{
                    e.printStackTrace();
                }
         mPlay = true;
-        Log.i("well", "mPlay:true");
-
-    }
-
-
-
-
-    class MusicServiceReceiver extends BroadcastReceiver {
-
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (CTRL_ACTION.contains(action)){
-                int control = intent.getIntExtra(MusicService.USER_ACTION_KEY, -1);
-                switch (control){
-                    case 1:
-                        if (mPlay){
-                            Pause();
-                        }else {
-                            Play();
-                            mPlay = true;
-                            Log.i("well", "mPlay:true");
-                        }
-                        break;
-                    case 2:
-//                        playPre();
-                        break;
-                    case 3:
-//                        playNext();
-                        break;
-
-                }
-
-
-            }
-
-        }
-
     }
 
     /**
      * 播放
      */
     private void Play(){
-
+        updateImage(getApplicationContext(),0x12);
         mPlay = true;
         mMediaPlayer.start();
         sendMessageToActivity(PLAY_PAUSE_WHAT, 0x12, current);
-        System.out.println(2);
     }
 
     /**
      * 暂停
      */
     private void Pause(){
+        updateImage(getApplicationContext(),0x11);
         mPlay = false;
         Log.i("well", "mPlay:false");
         mMediaPlayer.pause();
+
         sendMessageToActivity(PLAY_PAUSE_WHAT,0x11, current);
     }
 
@@ -268,18 +289,43 @@ public class MusicService extends Service{
 
     }
 
-    /**
-     * 给weight回发广播
-     *
-     * @param status 当前歌曲的状态
-     * @param current 当前歌曲的编号
-     */
-    private void pushBackAction(int status, int current) {
-        Intent intent = new Intent(MusicWidget.UPDATE_ACTION);
-        intent.putExtra(MusicWidget.STATUS, status);
-        intent.putExtra(MusicWidget.CURRENT, current);
-        sendBroadcast(intent);
-    }
+    class MusicServiceReceiver extends BroadcastReceiver {
 
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.i("well", "接收广播");
+            String action = intent.getAction();
+            if (MusicService.NOTIFICATION_ACTION.contains(action)){
+                String button_name = intent.getStringExtra(NOTIFICATION_ACTION);
+                switch (button_name){
+                    case "play":
+                        Log.i("well","我是播放");
+                        if (mPlay){
+                            Pause();
+                        }else {
+                            Play();
+                        }
+                        break;
+                    case "next":
+                        sendMessageToActivity(AUTO_PLAY_NEXT_WHAT,100,100);
+                        break;
+
+                }
+
+            }
+        }
+    }
+//    /**
+//     * 给weight回发广播
+//     *
+//     * @param status 当前歌曲的状态
+//     * @param current 当前歌曲的编号
+//     */
+//    private void pushBackAction(int status, int current) {
+//        Intent intent = new Intent(MusicWidget.UPDATE_ACTION);
+//        intent.putExtra(MusicWidget.STATUS, status);
+//        intent.putExtra(MusicWidget.CURRENT, current);
+//        sendBroadcast(intent);
+//    }
 
 }

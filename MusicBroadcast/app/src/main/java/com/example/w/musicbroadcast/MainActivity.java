@@ -22,10 +22,9 @@ import android.widget.Toast;
 import java.util.ArrayList;
 
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener{
+public class MainActivity extends AppCompatActivity implements View.OnClickListener,SeekBar.OnSeekBarChangeListener{
 
     private ImageView mPlay_imageView;
-    private ImageView mImageView;
     private TextView mTextView;
     ImageView prev_imageView;
     ImageView next_imageView;
@@ -40,6 +39,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     Messenger mServiceMessenger;
 
     boolean mIsMusicSelected = false;
+    boolean mPlay;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,24 +63,21 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 mIsMusicSelected = data.getBoolean("isMusicSelected");
                 mTextView.setText(mMusicInfoList.get(mPosition).getTitle());
                 mPlay_imageView.setImageResource(R.drawable.pause);
+                mPlay = true;
                 break;
             case "buttonToView":
-                if (!MusicListActivity.mPlay){
-                    if (mPosition == -1){
-                        //没有选音乐文件的时候
-                        Toast.makeText(MainActivity.this, "请先选择音乐", Toast.LENGTH_SHORT).show();
-                    }else {
-                        //歌曲在播放但是暂停的时候
+                mPlay = data.getBoolean("isPlay");
+                if (mPosition == -1){
+                    Toast.makeText(MainActivity.this, "请先选择音乐", Toast.LENGTH_SHORT).show();
+                }else {
+                    if (!mPlay){
                         mTextView.setText(mMusicInfoList.get(mPosition).getTitle());
-                        mIsMusicSelected = true;
+                    }else {
+                        mTextView.setText(mMusicInfoList.get(mPosition).getTitle());
+                        mPlay_imageView.setImageResource(R.drawable.pause);
                     }
-                }else{
-                    //歌曲正在播放
-                    mTextView.setText(mMusicInfoList.get(mPosition).getTitle());
-                    mPlay_imageView.setImageResource(R.drawable.pause);
                     mIsMusicSelected = true;
                 }
-
                 break;
         }
 
@@ -110,6 +107,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 case MusicService.AUTO_PLAY_NEXT_WHAT:
                     preOrNext(playNext());
                     break;
+                case MusicService.REFRESH_SEEK_BAR_WHAT:
+                    int Max = mSeekBar.getMax();
+                    int a  = msg.arg1 * Max / msg.arg2;
+                    mSeekBar.setProgress(a);
             }
 
         }
@@ -123,7 +124,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mPlay_imageView = (ImageView) findViewById(R.id.music_play_image);
         prev_imageView = (ImageView) findViewById(R.id.music_previous_image);
         next_imageView = (ImageView) findViewById(R.id.music_next_image);
-        mImageView = (ImageView) findViewById(R.id.imageView);
+//        ImageView imageView = (ImageView) findViewById(R.id.imageView);
         mTextView = (TextView) findViewById(R.id.music_song_name_text);
         mSeekBar = (SeekBar) findViewById(R.id.music_seek_bar);
         mSeekBar.setMax(999);
@@ -131,6 +132,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mPlay_imageView.setOnClickListener(this);
         prev_imageView.setOnClickListener(this);
         next_imageView.setOnClickListener(this);
+        mSeekBar.setOnSeekBarChangeListener(this);
     }
 
     @Override
@@ -145,9 +147,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     } catch (RemoteException e) {
                         e.printStackTrace();
                     }
-                    if (!MusicListActivity.mPlay){
-                        MusicListActivity.mPlay = true;
-                    }
+                    mPlay = !mPlay;
                     break;
                 case R.id.music_previous_image:
                     preOrNext(playPre());
@@ -169,6 +169,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private void preOrNext(String url){
         Message message = Message.obtain(null, 0x62);
         Bundle data = new Bundle();
+        data.putString("musicName", mMusicInfoList.get(mPosition).getTitle());
+        data.putString("musicSinger", mMusicInfoList.get(mPosition).getArtist());
         data.putString("musicUrl", url);
         message.setData(data);
         message.replyTo = mMessenger;
@@ -205,7 +207,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
         Log.i("po","" + mPosition);
         mTextView.setText(mMusicInfoList.get(mPosition).getTitle());
-        MusicListActivity.mPlay = true;
+        mPlay = true;
         return mMusicInfoList.get(mPosition).getUrl();
     }
 
@@ -218,6 +220,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 if (mIsMusicSelected){
                     intent.putExtra("position", mPosition);
                     intent.putExtra("isMusicSelected", mIsMusicSelected);
+                    intent.putExtra("isPlay", mPlay);
                 }
                 startActivity(intent);
 
@@ -290,5 +293,29 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             mBound = false;
         }
     };
+
+    @Override
+    public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+        if(fromUser){
+            Message message = Message.obtain(null, 0x63, progress, 1);
+            try {
+                mServiceMessenger.send(message);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
+
+    @Override
+    public void onStartTrackingTouch(SeekBar seekBar) {
+
+    }
+
+    @Override
+    public void onStopTrackingTouch(SeekBar seekBar) {
+
+    }
+
 
 }
