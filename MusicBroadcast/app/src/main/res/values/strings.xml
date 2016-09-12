@@ -18,4 +18,6 @@
 
     <string name="action_share">Share</string>
     <string name="action_reply">Reply</string>
+    <string name="play">play</string>
+    <string name="next">next</string>
 </resources>

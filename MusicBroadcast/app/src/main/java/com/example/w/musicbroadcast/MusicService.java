@@ -38,30 +38,28 @@ public class MusicService extends Service{
     public static final int PLAY_PAUSE_WHAT = 0x70;
     public static final int AUTO_PLAY_NEXT_WHAT = 0x71;
     public static final int REFRESH_SEEK_BAR_WHAT = 0x72;
-    //0x11,暂停播放，0x12,正在播放
-    //记录当前播放的音乐
-    int current = 0;
-    //歌曲是否在播放
-    static boolean mPlay = false;
-    //歌曲是否准备好了
-    boolean isPrepare;
 
-    boolean flag = false;
-    Timer mTimer = new Timer();
-    MusicServiceReceiver mMusicServiceReceiver;
-
-
-    ArrayList<Messenger> mClients = new ArrayList<>();
-
-    /**
-     * 绑定，解绑服务
-     */
     public static final int MSG_REGISTER_CLIENT = 10;
     public static final int MSG_UNREGISTER_CLIENT = 11;
+    //0x11,暂停播放，0x12,正在播放
 
-    private static MediaPlayer mMediaPlayer;
+    /**
+     * 歌曲是否在播放
+     */
+    static boolean  mPlay = false;
 
+    /**
+     * 歌曲是否准备好
+     */
+    boolean isPrepare;
+    Timer mTimer = new Timer();
+    ArrayList<Messenger> mClients = new ArrayList<>();
+    MusicServiceReceiver mMusicServiceReceiver;
+    private MediaPlayer mMediaPlayer;
 
+    /**
+     * 服务端处理消息
+     */
     Messenger mMessenger = new Messenger(new Handler(){
         @Override
         public void handleMessage(Message msg) {
@@ -73,8 +71,9 @@ public class MusicService extends Service{
                     mClients.remove(msg.replyTo);
                     break;
                 case MusicListActivity.LIST_MSG_PLAY:
+                    updateImage(getApplicationContext(),0x12);
                     Bundle data = msg.getData();
-                    updateText(getApplicationContext(), 1,data.getString("musicName"), data.getString("musicSinger"));
+                    updateText(getApplicationContext(), 1,data);
                     playSong(data.getString("musicUrl"));
                     break;
                 case 0x61:
@@ -87,18 +86,18 @@ public class MusicService extends Service{
                     break;
                 case 0x62:
                     if (!mPlay){
-                        sendMessageToActivity(PLAY_PAUSE_WHAT, 0x12, current);
+                        sendMessageToActivity(PLAY_PAUSE_WHAT, 0x12, 0);
                         updateImage(getApplicationContext(),0x12);
                     }
+                    Log.i("well", "下一首5");
                     Bundle data1 = msg.getData();
-                    updateText(getApplicationContext(),1,data1.getString("musicName"),data1.getString("musicSinger"));
+                    updateText(getApplicationContext(),1,data1);
                     playSong(data1.getString("musicUrl"));
 
                     break;
                 case 0x63:
                     if (msg.arg2 == 1){
                         mMediaPlayer.seekTo(mMediaPlayer.getDuration() * (msg.arg1) / 999);
-                        flag = true;
                     }
                     break;
                 default:
@@ -108,19 +107,14 @@ public class MusicService extends Service{
         }
     });
 
-
-    @Nullable
-    @Override
-    public IBinder onBind(Intent intent) {
-
-        return mMessenger.getBinder();
-    }
-
     @Override
     public void onCreate() {
         super.onCreate();
         mMediaPlayer = new MediaPlayer();
-        //注册广播
+
+        /**
+         * 注册广播
+         */
         mMusicServiceReceiver = new MusicServiceReceiver();
         IntentFilter filter = new IntentFilter();
         filter.addAction(NOTIFICATION_ACTION);
@@ -128,6 +122,9 @@ public class MusicService extends Service{
 
 //      pushBackAction(0x12, current);
 
+        /**
+         * 歌曲播放完默认自动播放下一首
+         */
         mMediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
             public void onCompletion(MediaPlayer mp) {
@@ -135,6 +132,9 @@ public class MusicService extends Service{
             }
         });
 
+        /**
+         * MediaPlayer的seekTo()调用完了会回调的方法
+         */
         mMediaPlayer.setOnSeekCompleteListener(new MediaPlayer.OnSeekCompleteListener() {
             @Override
             public void onSeekComplete(MediaPlayer mp) {
@@ -146,42 +146,83 @@ public class MusicService extends Service{
             }
         });
 
-        updateText(getApplicationContext(), 0, null,null);
+        updateText(getApplicationContext(), 0, null);
+
         refreshSeekBar();
     }
 
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+
+        return mMessenger.getBinder();
+    }
+
+    /**
+     * 获取PendingIntent对象
+     *
+     * @param context 上下文
+     * @param requestCode 请求码，每个必须不一样
+     * @param buttonName 传入按钮名字，在广播接收方法中以便于区分
+     * @return PendingIntent 对象
+     */
     private PendingIntent getPendingIntent(Context context, int requestCode, String buttonName) {
         Intent intent = new Intent(NOTIFICATION_ACTION);
         intent.putExtra(NOTIFICATION_ACTION, buttonName);
         return PendingIntent.getBroadcast(context, requestCode, intent, 0);
     }
 
+    /**
+     *
+     * @return 返回Notification.Builder对象
+     */
     private Notification.Builder getBuilder() {
 
         return new Notification.Builder(this.getApplicationContext())
                 .setWhen(System.currentTimeMillis())
-                .setSmallIcon(R.drawable.music_player_mini);
+                .setSmallIcon(R.drawable.music_player_mini)
+                .setContentTitle("Notification");
 
     }
+
+    /**
+     *
+     *
+     * @param context 上下文
+     * @return RemoteViews对象，好像RemoteViews最好不用复用
+     */
     @NonNull
     private RemoteViews getRemoteViews(Context context) {
+
         RemoteViews remoteViews = new RemoteViews(getPackageName(), R.layout.notification_layout);
         remoteViews.setOnClickPendingIntent(R.id.no_play, getPendingIntent(context, 1 ,"play"));
         remoteViews.setOnClickPendingIntent(R.id.no_next, getPendingIntent(context, 2 ,"next"));
         return remoteViews;
     }
 
-    private void updateText(Context context, int a, String songName, String singer){
-
+    /**
+     * 更新文字
+     *
+     * @param context 上下文
+     * @param a 判断对象
+     * @param data 数据
+     */
+    private void updateText(Context context, int a, Bundle data){
+        Log.i("well", "下一首6");
         RemoteViews remoteViews = getRemoteViews(context);
         if (a == 1) {
-            remoteViews.setTextViewText(R.id.no_song_name, songName);
-            remoteViews.setTextViewText(R.id.no_singer,singer);
+            remoteViews.setTextViewText(R.id.no_song_name, data.getString("musicName"));
+            remoteViews.setTextViewText(R.id.no_singer,data.getString("musicSinger"));
         }
         Notification notification = getBuilder().setContent(remoteViews).build();
         startForeground(2016, notification);
     }
 
+    /**
+     * 更新暂停播放图片
+     * @param context 上下文
+     * @param status 歌曲状态
+     */
     private void updateImage(Context context, int status){
 
         RemoteViews remoteViews = getRemoteViews(context);
@@ -231,7 +272,7 @@ public class MusicService extends Service{
                             sendMessageToActivity(REFRESH_SEEK_BAR_WHAT, mMediaPlayer.getCurrentPosition(),mMediaPlayer.getDuration());
                         }
                     }
-                },0 ,1000);
+                },0 ,100);
     }
 
     /**
@@ -260,7 +301,7 @@ public class MusicService extends Service{
         updateImage(getApplicationContext(),0x12);
         mPlay = true;
         mMediaPlayer.start();
-        sendMessageToActivity(PLAY_PAUSE_WHAT, 0x12, current);
+        sendMessageToActivity(PLAY_PAUSE_WHAT, 0x12, 0);
     }
 
     /**
@@ -272,12 +313,15 @@ public class MusicService extends Service{
         Log.i("well", "mPlay:false");
         mMediaPlayer.pause();
 
-        sendMessageToActivity(PLAY_PAUSE_WHAT,0x11, current);
+        sendMessageToActivity(PLAY_PAUSE_WHAT,0x11, 0);
     }
 
 
 
     private void sendMessageToActivity(int what, int status , int arg2){
+        if (what == 0x71){
+        Log.i("well", "下一首2");
+        }
         Message message = Message.obtain(null, what, status, arg2);
         try {
             for (int i = mClients.size() - 1; i >= 0 ; i--){
@@ -307,6 +351,7 @@ public class MusicService extends Service{
                         }
                         break;
                     case "next":
+                        Log.i("well", "下一首1");
                         sendMessageToActivity(AUTO_PLAY_NEXT_WHAT,100,100);
                         break;
 

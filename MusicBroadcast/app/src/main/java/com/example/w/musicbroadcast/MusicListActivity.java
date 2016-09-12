@@ -116,14 +116,11 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
         ImageView miniNext = (ImageView) findViewById(R.id.mini_next);
         mSongName = (TextView) findViewById(R.id.mini_song_name);
         mSinger = (TextView) findViewById(R.id.mini_singer);
-
-        mMusicLists.setOnItemClickListener(this);
-
         RelativeLayout relativeLayout = (RelativeLayout)findViewById(R.id.button_line);
 
         relativeLayout.setOnClickListener(this);
-
         miniNext.setOnClickListener(this);
+        mMusicLists.setOnItemClickListener(this);
         mMiniPlay.setOnClickListener(this);
     }
 
@@ -147,13 +144,8 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
                     if (!mIsMusicSelected){
                         Toast.makeText(MusicListActivity.this, "请先选择歌曲", Toast.LENGTH_SHORT).show();
                     }else {
-                        Message message =  Message.obtain(null, 0x61);
-                        message.replyTo = mMessenger;
-                        try {
-                            mServiceMessenger.send(message);
-                        } catch (RemoteException e) {
-                            e.printStackTrace();
-                        }
+                        SendMessageToService(-1,0x61);
+
                     }
                     mPlay = !mPlay;
                     System.out.println(mPlay);
@@ -173,19 +165,10 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
         if ( ++mPosition > (mMusicInfoList.size() - 1)){
             mPosition = 0;
         }
-        Message message = Message.obtain(null, 0x62);
-        Bundle data = new Bundle();
-        data.putString("musicUrl", mMusicInfoList.get(mPosition).getUrl());
-        message.setData(data);
-        message.replyTo = mMessenger;
-        try {
-            mServiceMessenger.send(message);
-        } catch (RemoteException e) {
-            e.printStackTrace();
-        }
+        SendMessageToService(mPosition, 0x62);
+
         mSongName.setText(mMusicInfoList.get(mPosition).getTitle());
         mSinger.setText(mMusicInfoList.get(mPosition).getArtist());
-        data.clear();
     }
 
 
@@ -204,18 +187,33 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
         startActivity(intent);
         data.clear();
 
-        Message message = Message.obtain(null, LIST_MSG_PLAY);
-        data.putString("musicUrl", mMusicInfoList.get(position).getUrl());
-        data.putString("musicName", mMusicInfoList.get(position).getTitle());
-        data.putString("musicSinger", mMusicInfoList.get(position).getArtist());
-        message.setData(data);
+        SendMessageToService(position, LIST_MSG_PLAY);
 
+
+    }
+
+    private void SendMessageToService(int position , int what) {
+
+        Message message =  Message.obtain(null, what);
+        Bundle data = new Bundle();
+        if (position < 0){
+            message.replyTo = mMessenger;
+        }else {
+                data.putString("musicUrl", mMusicInfoList.get(position).getUrl());
+                data.putString("musicName", mMusicInfoList.get(position).getTitle());
+                data.putString("musicSinger", mMusicInfoList.get(position).getArtist());
+                message.setData(data);
+            if (what == 0x62){
+                message.replyTo = mMessenger;
+            }
+
+        }
         try {
             mServiceMessenger.send(message);
         } catch (RemoteException e) {
             e.printStackTrace();
         }
-
+        data.clear();
 
     }
 
@@ -247,7 +245,7 @@ public class MusicListActivity extends AppCompatActivity implements AdapterView.
         super.onDestroy();
         Log.i("well", "onDestroy");
         if (mBound){
-            Message message = Message.obtain(null,MusicService.MSG_UNREGISTER_CLIENT);
+            Message message = Message.obtain(null, MusicService.MSG_UNREGISTER_CLIENT);
             message.replyTo = mMessenger;
             try {
                 mServiceMessenger.send(message);
